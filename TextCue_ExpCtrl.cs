@@ -68,11 +68,13 @@ public class TextCue_ExpCtrl : ExperimentController
         // All objects are distractors
         List<GameObject> distractors = new List<GameObject>();
         List<Vector3> distractors_positions = new List<Vector3>();
+
         foreach (GameObject go in taskInfo.CueObjects)
         {
             distractors.Add(go);
             distractors_positions.Add(go.transform.position);
         }
+
         foreach (GameObject go in taskInfo.TargetObjects)
         {
             distractors.Add(go);
@@ -125,6 +127,7 @@ public class TextCue_ExpCtrl : ExperimentController
                                 Distractor_Materials = null,
                                 Distractor_Positions = distractors_positions.ToArray()
                             });
+
                         distractors.Add(taskInfo.CueObjects[object_index]);
                         distractors.Add(taskInfo.TargetObjects[house_index]);
                         distractors_positions.Add(taskInfo.CueObjects[object_index].transform.position);
@@ -138,6 +141,49 @@ public class TextCue_ExpCtrl : ExperimentController
         Debug.Log("Generated :" + _allTrials.Count + " trials. " + (_allTrials.Count / taskInfo.NumberOfSets) + " of which are different.");
     }
 
+    // Since this is where the trial number gets incremented for every trial (i.e. _trialNumber++;), we can
+    // use this function to control whether the subject moves ahead in the trial list or whether they have to 
+    // re-do the previous trial (e.g. wrong object or house). 
+    // This will refer to the trial position in the _allTrials list. We need to increment trial number to have 
+    // a unique identifier for all of them but only increment the _allTrialsID if the previous trial was a 
+    // success. 
+    private int _allTrialsID = -1; 
+    public override void PrepareTrial()
+    {
+        // only increment _allTrialsID if the previous trial was a success.
+        // At the start of the first trial, the "previous trial" is set as a hit so 
+        // we need to start with a negative ID
+        if (_previousTrialError == 0)
+            _allTrialsID++;
+
+        // get current trial
+        _currentTrial = _allTrials[_allTrialsID];
+        
+        // increment trial counter regardless of performance
+        _trialNumber++;
+        _currentTrial.Trial_Number = _trialNumber;
+
+        // Prepare cues and targets. 
+        HideFixationObject();
+        PrepareFixationObject();
+        HideCues();
+        PrepareCues();
+        HideTargets();
+        PrepareTargets();
+        HideDistractors();
+        PrepareDistractors();
+
+        //teleport player to the start position
+        if (!taskInfo.ContinuousTrials)
+        {
+            playerController.ToStart(_currentTrial.Start_Position, _currentTrial.Start_Rotation);
+        }
+
+        // Sanity checks
+        TrialEnded = false;
+        Outcome = "aborted";
+    }
+    
     public override void HideCues()
     {
         // Clear text box and disable cue objects
@@ -149,9 +195,20 @@ public class TextCue_ExpCtrl : ExperimentController
 
     }
 
-    // Cue don't move nor change color so nothing to do. 
+    // Cue don't move nor change color
     public override void PrepareCues()
     {
+        // Detach objects
+        foreach (GameObject go in taskInfo.CueObjects)
+        {
+            if (go.TryGetComponent(out ObjectPickUp obpu))
+            {
+                obpu.Detach(false);
+
+                // if the cue objects are incorrect, prevent pick up sound
+                obpu.ToggleSound(!_currentTrial.Distractor_Objects.Contains(go));
+            }
+        }
     }
 
 
@@ -179,16 +236,39 @@ public class TextCue_ExpCtrl : ExperimentController
             go.GetComponent<Collider>().enabled = true;
             go.GetComponent<Renderer>().enabled = true;
         }
-        StartCoroutine(CueTextTimer());
-    }
-
-    IEnumerator CueTextTimer()
-    {
         string cueString = textcue_taskinfo.BaseCueString.Replace("{object}", _currentTrial.Cue_Objects[0].name.ToString());
         cueString = cueString.Replace("{target}", _currentTrial.Target_Objects[0].name.ToString());
-        textcue_taskinfo.cueTextBox.text = cueString;
+        StartCoroutine(CueTextTimer(cueString, textcue_taskinfo.TextCueDuration, Color.black));
 
-        yield return new WaitForSecondsRealtime(textcue_taskinfo.TextCueDuration);
+        // here the objects appear, so we need to set the feedbackstring to be "wrong object" 
+        // in case of error trials
+        FeedbackString = "Wrong object";
+    }
+
+    public override void ShowTargets()
+    {
+        // we need to update the FeedbackString, at this point the corect object has to
+        // be selected. 
+        FeedbackString = "Wrong house";
+        base.ShowTargets();
+    }
+
+    public override void ShowFeedback()
+    {
+        float duration = 1.5f;
+        if (_previousTrialError == 0) // Correct
+            StartCoroutine(CueTextTimer("Correct", duration, Color.green));
+        else if (_previousTrialError ==1) // Incorrect
+            StartCoroutine(CueTextTimer(FeedbackString, duration, Color.red));
+        else // 2 time run out / ignored
+            StartCoroutine(CueTextTimer("Time run out", duration, Color.red));
+    }
+
+    IEnumerator CueTextTimer(string cueString, float duration, Color c)
+    {
+        textcue_taskinfo.cueTextBox.text = cueString;
+        textcue_taskinfo.cueTextBox.color = c;
+        yield return new WaitForSecondsRealtime(duration);
         textcue_taskinfo.cueTextBox.text = "";
     }
 
