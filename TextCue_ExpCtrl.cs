@@ -37,7 +37,7 @@ public class TextCue_ExpCtrl : ExperimentController
         // Base function call. Do not remove. 
         base.Initialize();
     }
-
+    
     // Overriding base experiment controller functions
     // You need a special function to prepare all trials because you won't be using most
     // of the default settings. 
@@ -81,60 +81,73 @@ public class TextCue_ExpCtrl : ExperimentController
             distractors_positions.Add(go.transform.position);
         }
 
-        // Loop for start positions (only 1 per trial?)
-        for (int start_index = 0; start_index < taskInfo.StartPositions.Length; start_index++)
+        // My Slack message might not have been clear: 
+        // { } brackets are for definition of lists/arrays
+        // ( ) parentheses (i.e. Add ( ) ) are for execution functions from the array/list class
+        // They can't be combined at once. 
+        List<List<GameObject>> pairs = new List<List<GameObject>>()
         {
-            for (int object_index = 0; object_index < taskInfo.CueObjects.Length; object_index++)
+                new List<GameObject>{ taskInfo.StartPositions[0],taskInfo.CueObjects[0], taskInfo.TargetObjects[0]},
+                new List<GameObject>{ taskInfo.StartPositions[1],taskInfo.CueObjects[1], taskInfo.TargetObjects[1]},
+                new List<GameObject>{ taskInfo.StartPositions[2],taskInfo.CueObjects[2], taskInfo.TargetObjects[2]},
+                new List<GameObject>{ taskInfo.StartPositions[3],taskInfo.CueObjects[3], taskInfo.TargetObjects[3]},
+                new List<GameObject>{ taskInfo.StartPositions[4],taskInfo.CueObjects[4], taskInfo.TargetObjects[4]},
+                new List<GameObject>{ taskInfo.StartPositions[5],taskInfo.CueObjects[5], taskInfo.TargetObjects[5]},
+                new List<GameObject>{ taskInfo.StartPositions[6],taskInfo.CueObjects[6], taskInfo.TargetObjects[6]},
+                new List<GameObject>{ taskInfo.StartPositions[7],taskInfo.CueObjects[7], taskInfo.TargetObjects[7]},
+                new List<GameObject>{ taskInfo.StartPositions[8],taskInfo.CueObjects[8], taskInfo.TargetObjects[8]},
+                new List<GameObject>{ taskInfo.StartPositions[9],taskInfo.CueObjects[9], taskInfo.TargetObjects[9]}
+        };
+
+        foreach (List<GameObject> l in pairs)
+        { 
+            // At this point we have everything. Add to trial list N times:
+            for (int ii = 0; ii < taskInfo.NumberOfSets; ii++)
             {
-                for (int house_index = 0; house_index < taskInfo.TargetObjects.Length; house_index++)
-                {
-                    // At this point we have everything. Add to trial list N times:
-                    for (int ii = 0; ii < taskInfo.NumberOfSets; ii++)
+
+                //Remove targets from Distractors, they'll be added back at the end
+                distractors.Remove(l[1]);  // Cue Object
+                distractors.Remove(l[2]);  // House Object
+                distractors_positions.Remove(l[1].transform.position);
+                distractors_positions.Remove(l[2].transform.position);
+
+                // here both () and {} are combined because we are defining a new TrialData{ ... } and ADDing () it to the _allTrials List 
+                _allTrials.Add(
+                    new TrialData
                     {
+                        Trial_Number = 0,
+                        Start_Position = l[0].transform.position,
+                        Start_Rotation = l[0].transform.rotation.eulerAngles,
+                        // Fix point
+                        Fix_Object = null,
+                        // Subracting the camera position to get the fixation point local space (i.e. child of camera)
+                        Fix_Position_World = Vector3.zero,
+                        Fix_Position_Screen = Vector3.zero,
+                        Fix_Size = 0,
+                        Fix_Window = taskInfo.FixationWindow,
 
-                        //Remove targets from Distractors, they'll be added back at the end
-                        distractors.Remove(taskInfo.CueObjects[object_index]);
-                        distractors.Remove(taskInfo.TargetObjects[house_index]);
-                        distractors_positions.Remove(taskInfo.CueObjects[object_index].transform.position);
-                        distractors_positions.Remove(taskInfo.TargetObjects[house_index].transform.position);
+                        // Current Cue
+                        Cue_Objects = new GameObject[] { l[1] },
+                        Cue_Material = null,
 
-                        _allTrials.Add(
-                            new TrialData
-                            {
-                                Trial_Number = 0,
-                                Start_Position = taskInfo.StartPositions[start_index].transform.position,
-                                Start_Rotation = taskInfo.StartPositions[start_index].transform.rotation.eulerAngles,
-                                // Fix point
-                                Fix_Object = null,
-                                // Subracting the camera position to get the fixation point local space (i.e. child of camera)
-                                Fix_Position_World = Vector3.zero,
-                                Fix_Position_Screen = Vector3.zero,
-                                Fix_Size = 0,
-                                Fix_Window = taskInfo.FixationWindow,
+                        // Targets
+                        Target_Objects = new GameObject[] { l[2] },
+                        Target_Materials = null,
+                        Target_Positions = new Vector3[] { l[2].transform.position },
+                        MultipleTargets = taskInfo.MultipleTargets,
+                        MultipleRewardsScale = taskInfo.MultipleRewardsScale,
 
-                                // Current Cue
-                                Cue_Objects = new GameObject[] { taskInfo.CueObjects[object_index] },
-                                Cue_Material = null,
-
-                                // Targets
-                                Target_Objects = new GameObject[] { taskInfo.TargetObjects[house_index] },
-                                Target_Materials = null,
-                                Target_Positions = new Vector3[] { taskInfo.TargetObjects[house_index].transform.position },
-                                MultipleTargets = taskInfo.MultipleTargets,
-                                MultipleRewardsScale = taskInfo.MultipleRewardsScale,
-
-                                Distractor_Objects = distractors.ToArray(),
-                                Distractor_Materials = null,
-                                Distractor_Positions = distractors_positions.ToArray()
-                            });
-
-                        distractors.Add(taskInfo.CueObjects[object_index]);
-                        distractors.Add(taskInfo.TargetObjects[house_index]);
-                        distractors_positions.Add(taskInfo.CueObjects[object_index].transform.position);
-                        distractors_positions.Add(taskInfo.TargetObjects[house_index].transform.position);
-                    }
-                }
+                        Distractor_Objects = distractors.ToArray(),
+                        Distractor_Materials = null,
+                        Distractor_Positions = distractors_positions.ToArray()
+                    });
+                // Add objects back to distractors
+                distractors.Add(l[1]);
+                distractors.Add(l[2]);
+                distractors_positions.Add(l[1].transform.position);
+                distractors_positions.Add(l[2].transform.position);
             }
+                
         }
         // shuffle trials
         _allTrials = _allTrials.OrderBy(x => UnityEngine.Random.value).ToList();
@@ -155,6 +168,12 @@ public class TextCue_ExpCtrl : ExperimentController
         // we need to start with a negative ID
         if (_previousTrialError == 0)
             _allTrialsID++;
+
+        // Stop experiment once all trials are done. 
+        if (_allTrialsID == _allTrials.Count)
+        {
+            StopExperiment();
+        }
 
         // get current trial
         _currentTrial = _allTrials[_allTrialsID];
