@@ -29,7 +29,7 @@ public class AttachedObject
         go = new GameObject(m.name);
         go.transform.parent = attach_to;
         go.transform.localPosition = new Vector3 { x = 0, y = 0, z = 2.5f };
-        go.transform.localScale = new Vector3 { x = 0.25f, y = 0.25f, z = 0.25f };
+        go.transform.localScale = new Vector3 { x = 0.5f, y = 0.5f, z = 0.5f };
         mf = go.AddComponent<MeshFilter>();
         mr = go.AddComponent<MeshRenderer>();
 

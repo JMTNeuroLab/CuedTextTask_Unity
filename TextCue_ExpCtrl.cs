@@ -12,7 +12,8 @@ public class TextCue_ExpCtrl : ExperimentController
     // We use a specific sub-class of task info and set it as "taskInfo" so
     // all the base scripts will still work. 
     public TextCue_TaskInfo textcue_taskinfo;
-    
+    public SubjectIDGUI sID;
+
     // This function allows the base-class Experiment Controller to 
     // access values defined here (e.g. the IsNorth boolean). The returned value 
     // needs to be converted into the proper format with (format) before: 
@@ -81,22 +82,47 @@ public class TextCue_ExpCtrl : ExperimentController
             distractors_positions.Add(go.transform.position);
         }
 
+        // Add first exploration trial
+        _allTrials.Add(
+            new TrialData
+            {
+                Trial_Number = 0,
+                Start_Position = taskInfo.StartPositions[0].transform.position,
+                Start_Rotation = taskInfo.StartPositions[0].transform.rotation.eulerAngles,
+                // Fix point
+                Fix_Object = null,
+                // Subracting the camera position to get the fixation point local space (i.e. child of camera)
+                Fix_Position_World = Vector3.zero,
+                Fix_Position_Screen = Vector3.zero,
+                Fix_Size = 0,
+                Fix_Window = taskInfo.FixationWindow,
+
+                // Current Cue
+                Cue_Objects = new GameObject[] { },
+                Cue_Material = null,
+
+                // Targets
+                Target_Objects = new GameObject[] { },
+                Target_Materials = null,
+                Target_Positions = new Vector3[] { },
+                MultipleTargets = taskInfo.MultipleTargets,
+                MultipleRewardsScale = taskInfo.MultipleRewardsScale,
+
+                Distractor_Objects = new GameObject[] { },
+                Distractor_Materials = null,
+                Distractor_Positions = new Vector3[] { }
+            });
+
+
         // My Slack message might not have been clear: 
         // { } brackets are for definition of lists/arrays
         // ( ) parentheses (i.e. Add ( ) ) are for execution functions from the array/list class
         // They can't be combined at once. 
         List<List<GameObject>> pairs = new List<List<GameObject>>()
         {
-                new List<GameObject>{ taskInfo.StartPositions[0],taskInfo.CueObjects[0], taskInfo.TargetObjects[0]},
-                new List<GameObject>{ taskInfo.StartPositions[1],taskInfo.CueObjects[1], taskInfo.TargetObjects[1]},
-                new List<GameObject>{ taskInfo.StartPositions[2],taskInfo.CueObjects[2], taskInfo.TargetObjects[2]},
-                new List<GameObject>{ taskInfo.StartPositions[3],taskInfo.CueObjects[3], taskInfo.TargetObjects[3]},
-                new List<GameObject>{ taskInfo.StartPositions[4],taskInfo.CueObjects[4], taskInfo.TargetObjects[4]},
-                new List<GameObject>{ taskInfo.StartPositions[5],taskInfo.CueObjects[5], taskInfo.TargetObjects[5]},
-                new List<GameObject>{ taskInfo.StartPositions[6],taskInfo.CueObjects[6], taskInfo.TargetObjects[6]},
-                new List<GameObject>{ taskInfo.StartPositions[7],taskInfo.CueObjects[7], taskInfo.TargetObjects[7]},
-                new List<GameObject>{ taskInfo.StartPositions[8],taskInfo.CueObjects[8], taskInfo.TargetObjects[8]},
-                new List<GameObject>{ taskInfo.StartPositions[9],taskInfo.CueObjects[9], taskInfo.TargetObjects[9]}
+            new List<GameObject>{ taskInfo.StartPositions[0], taskInfo.CueObjects[0], taskInfo.TargetObjects[0]},
+            new List<GameObject>{ taskInfo.StartPositions[0], taskInfo.CueObjects[1], taskInfo.TargetObjects[1]},
+            new List<GameObject>{ taskInfo.StartPositions[0], taskInfo.CueObjects[2], taskInfo.TargetObjects[2]},
         };
 
         foreach (List<GameObject> l in pairs)
@@ -150,7 +176,7 @@ public class TextCue_ExpCtrl : ExperimentController
                 
         }
         // shuffle trials
-        _allTrials = _allTrials.OrderBy(x => UnityEngine.Random.value).ToList();
+        // _allTrials = _allTrials.OrderBy(x => UnityEngine.Random.value).ToList();
         Debug.Log("Generated :" + _allTrials.Count + " trials. " + (_allTrials.Count / taskInfo.NumberOfSets) + " of which are different.");
     }
 
@@ -166,13 +192,15 @@ public class TextCue_ExpCtrl : ExperimentController
         // only increment _allTrialsID if the previous trial was a success.
         // At the start of the first trial, the "previous trial" is set as a hit so 
         // we need to start with a negative ID
-        if (_previousTrialError == 0)
+        if (_previousTrialError == 0 || _allTrialsID == 0)
             _allTrialsID++;
 
         // Stop experiment once all trials are done. 
         if (_allTrialsID == _allTrials.Count)
         {
+            sID.DisplayCompletionCode();
             StopExperiment();
+            return;
         }
 
         // get current trial
@@ -255,10 +283,23 @@ public class TextCue_ExpCtrl : ExperimentController
             go.GetComponent<Collider>().enabled = true;
             go.GetComponent<Renderer>().enabled = true;
         }
-        string cueString = textcue_taskinfo.BaseCueString.Replace("{object}", _currentTrial.Cue_Objects[0].name.ToString());
-        cueString = cueString.Replace("{target}", _currentTrial.Target_Objects[0].name.ToString());
-        StartCoroutine(CueTextTimer(cueString, textcue_taskinfo.TextCueDuration, Color.black));
-
+        if (_currentTrial.Cue_Objects.Length > 0)
+        {
+            string cueString = textcue_taskinfo.BaseCueString.Replace("{object}", _currentTrial.Cue_Objects[0].name.ToString());
+            cueString = cueString.Replace("{target}", _currentTrial.Target_Objects[0].name.ToString());
+            StartCoroutine(CueTextTimer(cueString, textcue_taskinfo.TextCueDuration, Color.black));
+        }
+        else  // if there are no cues, it means it's an exploration trial
+        {
+            string cueString = "Explore the environment to familiarize yourself. ";
+            StartCoroutine(CueTextTimer(cueString, textcue_taskinfo.TextCueDuration, Color.black));
+            // Only show targets, don't activate their collider. 
+            foreach (GameObject go in taskInfo.TargetObjects)
+            {
+                go.GetComponent<Renderer>().enabled = true;
+                go.GetComponent<Collider>().enabled = false;
+            }
+        }
         // here the objects appear, so we need to set the feedbackstring to be "wrong object" 
         // in case of error trials
         FeedbackString = "Wrong object";
@@ -269,6 +310,7 @@ public class TextCue_ExpCtrl : ExperimentController
         // we need to update the FeedbackString, at this point the corect object has to
         // be selected. 
         FeedbackString = "Wrong house";
+
         base.ShowTargets();
     }
 
